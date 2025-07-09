@@ -36,6 +36,6 @@ export class ConfiguracionSensoresController {
   @ApiResponse({ status: 200, description: 'Lista de configuraciones obtenida correctamente.' })
   @Get()
   async getAll() {
-    return this.configuracionSensoresService.get();
+    return this.configuracionSensoresService.getAll();
   }
 }
