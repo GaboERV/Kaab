@@ -1,0 +1,21 @@
+{
+  "name": "init",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.35.0",
+    "@influxdata/influxdb-client-apis": "^1.35.0",
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.1.0",
+    "mongodb": "^6.17.0",
+    "node-fetch": "^3.3.2"
+  }
+}

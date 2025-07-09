@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7
+    container_name: redis
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    expose:
+      - "27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: ${DOCKER_INFLUXDB_INIT_MODE}
+      DOCKER_INFLUXDB_INIT_USERNAME: ${DOCKER_INFLUXDB_INIT_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${DOCKER_INFLUXDB_INIT_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
+      DOCKER_INFLUXDB_INIT_TOKEN: ${INFLUXDB_TOKEN}
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - MQTT_URL=${MQTT_BROKER}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    depends_on:
+      - redis
+      - mongo
+      - influxdb
+      - mosquitto
+
+  procesamiento:
+    build:
+      context: ./procesamiento
+      dockerfile: Dockerfile
+    environment:
+      - MQTT_BROKER=${MQTT_BROKER}
+      - MONGO_URL=${MONGO_URL}
+      - MONGODB_NAME=${MONGODB_NAME}
+      - INFLUX_URL=${INFLUXDB_URL}
+      - INFLUX_TOKEN=${INFLUXDB_TOKEN}
+      - ORG=${INFLUXDB_ORG}
+      - BUCKET=${INFLUXDB_BUCKET}
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      - redis
+      - mongo
+      - influxdb
+      - mosquitto
+
+  monitoreo:
+    build:
+      context: ./monitoreo
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - MQTT_BROKER=${MQTT_BROKER}
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      - redis
+      - mosquitto
+
+  init:
+    build:
+      context: ./init
+      dockerfile: Dockerfile
+    environment:
+      - MONGO_URL=${MONGO_URL}
+      - INFLUX_URL=${INFLUXDB_URL}
+      - INFLUX_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUX_USERNAME=${DOCKER_INFLUXDB_INIT_USERNAME}
+      - INFLUX_PASSWORD=${DOCKER_INFLUXDB_INIT_PASSWORD}
+      - INFLUX_ORG=${INFLUXDB_ORG}
+      - INFLUX_BUCKET=${INFLUXDB_BUCKET}
+      - MONGODB_NAME=${MONGODB_NAME}
+      - MONGODB_USER=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGODB_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - SUPERUSER_EMAIL=${SUPERUSER_EMAIL}
+      - SUPERUSER_PASSWORD=${SUPERUSER_PASSWORD}
+    depends_on:
+      - mongo
+      - influxdb
+
+volumes:
+  redis_data:
+  mongo_data:
+  influxdb_data:
+
+networks:
+  default:
+    driver: bridge
+    enable_ipv6: false

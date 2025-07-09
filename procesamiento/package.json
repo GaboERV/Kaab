@@ -1,0 +1,20 @@
+{
+  "name": "procesamiento_de_datos",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.35.0",
+    "dotenv": "^16.6.1",
+    "mongodb": "^6.17.0",
+    "mqtt": "^5.13.1",
+    "redis": "^5.5.6"
+  }
+}

@@ -1,0 +1,16 @@
+.env
+
+app/node_modules/
+app/dist/
+app/.env
+
+monitoreo/node_modules/
+monitoreo/.env
+
+mosquitto/data/mosquitto.db
+mosquitto/log/mosquitto.log
+
+procesamiento/node_modules/
+procesamiento/.env
+
+init/node_modules/
