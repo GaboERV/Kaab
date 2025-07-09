@@ -18,7 +18,7 @@ echo -e "${YELLOW}📦 Cargando variables de entorno...${NC}"
 export $(grep -v '^#' .env | xargs)
 
 echo -e "${YELLOW}🧹 Deteniendo y eliminando contenedores y redes huérfanas anteriores...${NC}"
-docker-compose down --remove-orphans || true
+docker compose down --remove-orphans || true
 
 echo -e "${YELLOW}🔧 Verificando si la red 'kaab_default' necesita recrearse...${NC}"
 if docker network inspect kaab_default >/dev/null 2>&1; then
@@ -27,13 +27,13 @@ if docker network inspect kaab_default >/dev/null 2>&1; then
 fi
 
 echo -e "${YELLOW}🚧 Reconstruyendo imágenes y levantando servicios...${NC}"
-docker-compose up -d --build
+docker compose up -d --build
 
 echo -e "${YELLOW}⏳ Esperando 3 segundos a que todos los servicios arranquen...${NC}"
 sleep 3
 
 echo -e "${YELLOW}⚙️ Ejecutando tarea de inicialización (init)...${NC}"
-if docker-compose run --rm init; then
+if docker compose run --rm init; then
   echo -e "${GREEN}✅ Init ejecutado correctamente.${NC}"
 else
   echo -e "${RED}❌ Ocurrió un error ejecutando el servicio init.${NC}"
