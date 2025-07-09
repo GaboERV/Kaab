@@ -32,4 +32,10 @@ export class ConfiguracionSensoresController {
   ) {
     return this.configuracionSensoresService.update(id, updateConfiguracionSensoreDto);
   }
+  @ApiOperation({ summary: 'Obtener todas las configuraciones de colmenas' })
+  @ApiResponse({ status: 200, description: 'Lista de configuraciones obtenida correctamente.' })
+  @Get()
+  async getAll() {
+    return this.configuracionSensoresService.get();
+  }
 }

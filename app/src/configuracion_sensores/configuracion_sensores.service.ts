@@ -26,6 +26,15 @@ export class ConfiguracionSensoresService {
     }
     return configuracion;
   }
+  async getAll(): Promise<any[]> {
+  const configuraciones = await this.mongoDbService
+    .getCollection('colmenas')
+    .find({})
+    .toArray();
+
+  return configuraciones;
+}
+
 
   async update(id: string, updateData: any): Promise<any> {
     if (!id) {
