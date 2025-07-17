@@ -26,4 +26,12 @@ export class DatosSensoresController {
   async obtenerColmenasData() {
     return this.datosSensoresService.getAllColmenasData();
   }
+  @Get('ultimo-dato-colmena')
+  @ApiOperation({ summary: 'Obtener datos de una colmena específica' })
+  @ApiQuery({ name: 'colmenaId', required: true, type: String, description: 'ID de la colmena' })
+  @ApiResponse({ status: 200, description: 'Datos de la colmena obtenidos correctamente.' })
+  async obtenerColmenaData(@Query('colmenaId') colmenaId: string) {
+    return this.datosSensoresService.getColmenaDataById(colmenaId);
+  }
 }
+

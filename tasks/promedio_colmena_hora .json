@@ -1,1 +1,12 @@
-[{"apiVersion":"influxdata.com/v2alpha1","kind":"Task","metadata":{"name":"optimistic-shannon-794001"},"spec":{"cron":"0 * * * *","name":"promedio_colmena_hora","query":"from(bucket: \"colmena\")\n    |> range(start: -1h)\n    |> filter(fn: (r) => r._measurement == \"promedios_colmena_minuto\")\n    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n    |> group(columns: [\"colmena_id\", \"_field\"])\n    |> map(\n        fn: (r) =>\n            ({\n                _time: now(),\n                _measurement: \"promedios_colmena_hora\",\n                _field: r._field,\n                _value: r._value,\n                colmena_id: r.colmena_id,\n            }),\n    )\n    |> to(bucket: \"colmena\", org: \"MoriahMkt\")"}}]
+[
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Task",
+    "metadata": { "name": "optimistic-shannon-794001" },
+    "spec": {
+      "cron": "0 * * * *",
+      "name": "promedio_colmena_hora",
+      "query": "from(bucket: \"colmena\")\n    |> range(start: -1h)\n    |> filter(fn: (r) => r._measurement == \"promedios_colmena_minuto\")\n    |> aggregateWindow(every: 1h, fn: mean, createEmpty: false)\n    |> group(columns: [\"colmena_id\", \"_field\"])\n    |> map(\n        fn: (r) =>\n            ({\n                _time: now(),\n                _measurement: \"promedios_colmena_hora\",\n                _field: r._field,\n                _value: r._value,\n                colmena_id: r.colmena_id,\n            }),\n    )\n    |> to(bucket: \"colmena\", org: \"MoriahMkt\")"
+    }
+  }
+]

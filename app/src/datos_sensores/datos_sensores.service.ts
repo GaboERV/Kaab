@@ -127,4 +127,7 @@ export class DatosSensoresService {
    getAllColmenasData(): ColmenasParametros[] {
     return this.colmenasData;
   }
+  getColmenaDataById(colmenaId: string): ColmenasParametros | undefined {
+    return this.colmenasData.find(colmena => colmena.colmena_id === colmenaId);
+  }
 }

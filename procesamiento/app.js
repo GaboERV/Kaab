@@ -3,6 +3,7 @@ import { MongoClient } from "mongodb";
 import { InfluxDB, Point } from "@influxdata/influxdb-client";
 import { createClient } from "redis";
 import dotenv from "dotenv";
+import Queue from "bull"; // Import the BullMQ library
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const BUCKET = process.env.BUCKET || "";
 const REDIS_URL = process.env.REDIS_URL || "";
 const MONGODB_NAME = process.env.MONGODB_NAME || "";
 
-console.log(INFLUX_URL,INFLUX_TOKEN,ORG,BUCKET)
+console.log(INFLUX_URL, INFLUX_TOKEN, ORG, BUCKET);
 
 const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
 const writeApi = influx.getWriteApi(ORG, BUCKET, "s");
@@ -32,80 +33,20 @@ redisClient
 
 const mqttClient = connect(MQTT_BROKER);
 
-// --- Función para cargar todos los sensores a Redis ---
-async function cargarSensoresCache() {
-  await mongoClient.connect();
+// --- Initialize BullMQ Queue ---
+const dataQueue = new Queue("data-processing", REDIS_URL); // 'data-processing' is the queue name
 
-  const db = mongoClient.db(MONGODB_NAME);
-  const colmenas = db.collection("colmenas");
-
-  const sensores = await colmenas.find().toArray();
-  for (const sensor of sensores) {
-    await redisClient.set(
-      `colmena:${sensor.colmena_id}`,
-      JSON.stringify(sensor)
-    );
-  }
-
-  console.log(`🔁 Sensores cargados a Redis: ${sensores.length}`);
+// --- Function to add data to the queue ---
+async function addDataToQueue(data) {
+  await dataQueue.add("process-data", data);
 }
 
-// --- Función para obtener los datos de la colmena desde Redis o MongoDB ---
-async function obtenerColmena(colmena_id) {
+// --- Function to process data from the queue ---
+async function processData(job) {
+  const { colmena_id, temperatura, humedad, presion, peso, timestamp } =
+    job.data;
+
   try {
-    let colmenaData = await redisClient.get(`colmena:${colmena_id}`);
-
-    if (!colmenaData) {
-      console.log(`Colmena ${colmena_id} no encontrada en Redis, consultando MongoDB...`);
-      const db = mongoClient.db(MONGODB_NAME);
-      const colmenas = db.collection("colmenas");
-      const colmena = await colmenas.findOne({ colmena_id });
-   
-      if (colmena) {
-        await redisClient.set(`colmena:${colmena_id}`, JSON.stringify(colmena));
-        console.log(`Colmena ${colmena_id} cargada desde MongoDB y cacheada en Redis.`);
-        return colmena;
-      } else {
-        crearNuevaColmena(colmena_id,`colmena ${colmena_id}` );
-     
-      }
-    }
-
-    return JSON.parse(colmenaData);
-
-  } catch (error) {
-    console.error(`❌ Error al obtener la colmena ${colmena_id}:`, error);
-    return null;
-  }
-}
-
-// --- Función para invalidar la caché de una colmena ---
-async function invalidarCacheColmena(colmena_id) {
-  try {
-    await redisClient.del(`colmena:${colmena_id}`);
-    console.log(`🗑️  Cache de colmena ${colmena_id} invalidada.`);
-  } catch (error) {
-    console.error(`❌ Error al invalidar la cache de la colmena ${colmena_id}:`, error);
-  }
-}
-
-// --- INICIO ---
-mqttClient.on("connect", async () => {
-  console.log("✅ Conectado a Mosquitto");
-  mqttClient.subscribe("kaab/colmenas");
-
-  // Cargar cache
-  await cargarSensoresCache();
-});
-
-// --- PROCESAMIENTO DE MENSAJES ---
-mqttClient.on("message", async (topic, message) => {
-  try {
-    const data = JSON.parse(message.toString());
-    console.log("ℹ️  Objeto 'data' después de JSON.parse():", data);
-
-    const { colmena_id, temperatura, humedad, presion, peso, timestamp } = data;
-
     // Obtener los datos de la colmena desde Redis o MongoDB
     const colmena = await obtenerColmena(colmena_id);
 
@@ -140,9 +81,98 @@ mqttClient.on("message", async (topic, message) => {
     writeApi.writePoint(point);
 
     console.log(`✅ Dato insertado: ${colmena_id}`);
+  } catch (err) {
+    console.error("❌ Error al procesar mensaje:", err.message);
+  }
+}
 
-    // **IMPORTANTE:** Ya no necesitas el bloque de código para verificar si existe en Redis
-    // porque la función `obtenerColmena` ya se encarga de eso.
+// --- Process messages from the queue using a worker ---
+dataQueue.process("process-data", async (job) => {
+  await processData(job);
+});
+
+// --- Función para cargar todos los sensores a Redis ---
+async function cargarSensoresCache() {
+  await mongoClient.connect();
+
+  const db = mongoClient.db(MONGODB_NAME);
+  const colmenas = db.collection("colmenas");
+
+  const sensores = await colmenas.find().toArray();
+  for (const sensor of sensores) {
+    await redisClient.set(
+      `colmena:${sensor.colmena_id}`,
+      JSON.stringify(sensor)
+    );
+  }
+
+  console.log(`🔁 Sensores cargados a Redis: ${sensores.length}`);
+}
+
+// --- Función para obtener los datos de la colmena desde Redis o MongoDB ---
+async function obtenerColmena(colmena_id) {
+  try {
+    let colmenaData = await redisClient.get(`colmena:${colmena_id}`);
+
+    if (!colmenaData) {
+      console.log(
+        `Colmena ${colmena_id} no encontrada en Redis, consultando MongoDB...`
+      );
+      const db = mongoClient.db(MONGODB_NAME);
+      const colmenas = db.collection("colmenas");
+      const colmena = await colmenas.findOne({ colmena_id });
+
+      if (colmena) {
+        await redisClient.set(
+          `colmena:${colmena_id}`,
+          JSON.stringify(colmena)
+        );
+        console.log(
+          `Colmena ${colmena_id} cargada desde MongoDB y cacheada en Redis.`
+        );
+        return colmena;
+      } else {
+        crearNuevaColmena(colmena_id, `colmena ${colmena_id}`);
+      }
+    }
+
+    return JSON.parse(colmenaData);
+  } catch (error) {
+    console.error(`❌ Error al obtener la colmena ${colmena_id}:`, error);
+    return null;
+  }
+}
+
+// --- Función para invalidar la caché de una colmena ---
+async function invalidarCacheColmena(colmena_id) {
+  try {
+    await redisClient.del(`colmena:${colmena_id}`);
+    console.log(`🗑️  Cache de colmena ${colmena_id} invalidada.`);
+  } catch (error) {
+    console.error(
+      `❌ Error al invalidar la cache de la colmena ${colmena_id}:`,
+      error
+    );
+  }
+}
+
+// --- INICIO ---
+mqttClient.on("connect", async () => {
+  console.log("✅ Conectado a Mosquitto");
+  mqttClient.subscribe("kaab/colmenas");
+
+  // Cargar cache
+  await cargarSensoresCache();
+});
+
+// --- PROCESAMIENTO DE MENSAJES ---
+mqttClient.on("message", async (topic, message) => {
+  try {
+    const data = JSON.parse(message.toString());
+    console.log("ℹ️  Objeto 'data' después de JSON.parse():", data);
+
+    // Add data to the queue for processing
+    await addDataToQueue(data);
   } catch (err) {
     console.error("❌ Error al procesar mensaje:", err.message);
   }
@@ -174,10 +204,12 @@ async function crearNuevaColmena(colmena_id, nombre) {
     await colmenas.insertOne(nuevaColmena);
 
     // Cargar la nueva colmena en la cache
-    await redisClient.set(`colmena:${colmena_id}`, JSON.stringify(nuevaColmena));
+    await redisClient.set(
+      `colmena:${colmena_id}`,
+      JSON.stringify(nuevaColmena)
+    );
 
     console.log(`🆕 Nueva colmena registrada y cacheada: ${colmena_id}`);
-
   } catch (error) {
     console.error(`❌ Error al crear la nueva colmena ${colmena_id}:`, error);
   }
@@ -189,15 +221,20 @@ async function actualizarEstadoColmena(colmena_id, nuevoEstado) {
     const db = mongoClient.db(MONGODB_NAME);
     const colmenas = db.collection("colmenas");
 
-    await colmenas.updateOne({ colmena_id: colmena_id }, { $set: { activo: nuevoEstado } });
+    await colmenas.updateOne(
+      { colmena_id: colmena_id },
+      { $set: { activo: nuevoEstado } }
+    );
 
     // Invalidar la caché
     await invalidarCacheColmena(colmena_id);
 
     console.log(`✅ Colmena ${colmena_id} actualizada y caché invalidada.`);
-
   } catch (error) {
-    console.error(`❌ Error al actualizar el estado de la colmena ${colmena_id}:`, error);
+    console.error(
+      `❌ Error al actualizar el estado de la colmena ${colmena_id}:`,
+      error
+    );
   }
 }
 
@@ -206,4 +243,3 @@ async function actualizarEstadoColmena(colmena_id, nuevoEstado) {
 //   await crearNuevaColmena("colmena123", "Colmena de prueba");
 //   await actualizarEstadoColmena("colmena123", false);
 // }, 5000);
-

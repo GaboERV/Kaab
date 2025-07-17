@@ -42,3 +42,4 @@ else
 fi
 
 echo -e "${GREEN}🎉 Todos los servicios están arriba y listos.${NC}"
+
