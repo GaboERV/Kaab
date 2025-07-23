@@ -73,7 +73,7 @@ async function processData(job) {
       .floatField("temperatura", parseFloat(temperatura))
       .floatField("humedad", parseFloat(humedad))
       .floatField("presion", parseFloat(presion))
-      .floatField("peso", parseFloat(peso))
+      .floatField("peso", isNaN(parseFloat(peso)) ? 0 : parseFloat(peso))
       .timestamp(new Date(timestamp * 1000));
 
     console.log("ℹ️  Punto InfluxDB creado:", point);
